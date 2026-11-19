@@ -7,8 +7,6 @@ import { join } from 'node:path';
 import { runCheck } from '../src/run.js';
 import { SlopCheckError } from '../src/git.js';
 
-const EM_DASH = String.fromCharCode(0x2014);
-
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
@@ -88,10 +86,10 @@ test('all mode scans every tracked file', () => {
 test('commit messages are checked in branch mode', () => {
   const dir = makeRepo();
   git(dir, 'checkout', '-q', '-b', 'feature');
-  commitFile(dir, 'b.js', 'const b = 2;\n', `feat: add b ${EM_DASH} quickly`);
+  commitFile(dir, 'b.js', 'const b = 2;\n', 'feat: supercharge b');
   const result = runCheck({ cwd: dir, mode: 'branch' });
   assert.equal(result.findings.length, 1);
-  assert.equal(result.findings[0].rule, 'em-dash');
+  assert.equal(result.findings[0].rule, 'buzzword');
   assert.equal(result.findings[0].commit.length, 7);
 });
 

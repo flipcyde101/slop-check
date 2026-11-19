@@ -34,15 +34,16 @@ test('dots and other characters are literal', () => {
 test('no config file gives defaults', () => {
   const config = loadConfig(dirWithConfig());
   assert.deepEqual(config, { rules: {}, ignore: [], maxScore: null, warnings: [] });
-  assert.ok(enabledRules(config).has('em-dash'));
+  assert.ok(enabledRules(config).has('empty-catch'));
+  assert.ok(!enabledRules(config).has('em-dash'));
   assert.ok(!enabledRules(config).has('ai-attribution'));
 });
 
 test('config turns rules on and off and warns about unknown ones', () => {
-  const config = loadConfig(dirWithConfig('{ "rules": { "em-dash": "off", "ai-attribution": "on", "nope": "off" } }'));
+  const config = loadConfig(dirWithConfig('{ "rules": { "buzzword": "off", "em-dash": "on", "nope": "off" } }'));
   const enabled = enabledRules(config);
-  assert.ok(!enabled.has('em-dash'));
-  assert.ok(enabled.has('ai-attribution'));
+  assert.ok(!enabled.has('buzzword'));
+  assert.ok(enabled.has('em-dash'));
   assert.equal(config.warnings.length, 1);
   assert.match(config.warnings[0], /unknown rule "nope"/);
 });

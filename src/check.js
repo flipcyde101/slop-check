@@ -12,6 +12,41 @@ function commentOf(text, style) {
   return style === 'text' ? null : getComment(text, style);
 }
 
+function cleanBlockLine(text) {
+  return text.trim().replace(/^\/?\*+/, '').replace(/\*\/\s*$/, '').trim();
+}
+
+// Works out which lines are comments, following /* ... */ blocks across lines so
+// code examples inside doc comments are not read as code.
+function readComments(lines, style) {
+  const result = [];
+  let inBlock = false;
+  let previousNumber = null;
+
+  for (const line of lines) {
+    if (previousNumber !== null && line.number !== previousNumber + 1) {
+      inBlock = false;
+    }
+    previousNumber = line.number;
+    const trimmed = line.text.trim();
+
+    if (inBlock) {
+      result.push({ comment: cleanBlockLine(line.text), isCommentLine: true });
+      inBlock = !trimmed.includes('*/');
+      continue;
+    }
+    if (style === 'slash' && trimmed.startsWith('/*')) {
+      inBlock = !trimmed.slice(2).includes('*/');
+    }
+
+    const comment = commentOf(line.text, style);
+    const markers = { slash: ['//', '/*', '*'], hash: ['#'], dash: ['--'], text: [] }[style];
+    const startsWithMarker = markers.some((marker) => trimmed.startsWith(marker));
+    result.push({ comment, isCommentLine: comment !== null && startsWithMarker });
+  }
+  return result;
+}
+
 export function checkFile(file, enabled) {
   const language = getLanguage(file.path);
   if (!language) {
@@ -26,6 +61,7 @@ export function checkFile(file, enabled) {
     isExample: isExampleFile(file.path),
   };
   const rules = RULES.filter((rule) => rule.scope === 'line' && enabled.has(rule.id) && rule.appliesTo(info));
+  const comments = readComments(file.lines, info.style);
   const findings = [];
 
   for (let i = 0; i < file.lines.length; i += 1) {
@@ -38,10 +74,12 @@ export function checkFile(file, enabled) {
     const following = file.lines[i + 1];
     let next = null;
     if (following && following.number === line.number + 1) {
-      next = { number: following.number, text: following.text, comment: commentOf(following.text, info.style) };
+      next = { number: following.number, text: following.text, ...comments[i + 1] };
     }
 
-    const ctx = { text: line.text, comment: commentOf(line.text, info.style), next, file: info };
+    const previous = file.lines[i - 1];
+    const previousIsComment = Boolean(previous && previous.number === line.number - 1 && comments[i - 1].isCommentLine);
+    const ctx = { text: line.text, ...comments[i], previousIsComment, next, file: info };
     for (const rule of rules) {
       if (rule.check(ctx)) {
         findings.push({ rule: rule.id, weight: rule.weight, message: rule.message, file: file.path, line: line.number });
@@ -69,7 +107,7 @@ export function checkCommit(commit, enabled) {
     if (text.includes(IGNORE_MARKER)) {
       continue;
     }
-    const ctx = { text, comment: null, next: null, file: COMMIT_TEXT };
+    const ctx = { text, comment: null, isCommentLine: false, previousIsComment: false, next: null, file: COMMIT_TEXT };
     for (const rule of rules) {
       if (rule.check(ctx)) {
         findings.push({ rule: rule.id, weight: rule.weight, message: rule.message, commit: commit.sha.slice(0, 7) });

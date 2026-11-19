@@ -18,10 +18,14 @@ function lines(...texts) {
 describe('empty-catch', () => {
   test('flags swallowed errors', () => {
     assert.ok(ruleIds('a.js', lines('} catch (e) {}')).includes('empty-catch'));
-    assert.ok(ruleIds('a.ts', lines('try { a() } catch {}')).includes('empty-catch'));
     assert.ok(ruleIds('a.js', lines('} catch (err) {', '}')).includes('empty-catch'));
     assert.ok(ruleIds('a.py', lines('except: pass')).includes('empty-catch'));
     assert.ok(ruleIds('a.py', lines('except Exception:', '    pass')).includes('empty-catch'));
+  });
+  test('leaves deliberate ignores alone (calibration)', () => {
+    assert.ok(!ruleIds('a.ts', lines('try { a() } catch {}')).includes('empty-catch'));
+    assert.ok(!ruleIds('a.py', lines('except ImportError:', '    pass')).includes('empty-catch'));
+    assert.ok(!ruleIds('a.py', lines('except StopIteration: pass')).includes('empty-catch'));
   });
   test('leaves handled errors alone', () => {
     assert.ok(!ruleIds('a.js', lines('} catch (e) { log(e) }')).includes('empty-catch'));
@@ -54,6 +58,22 @@ describe('restating-comment', () => {
   test('leaves comments that explain why alone', () => {
     assert.ok(!ruleIds('a.js', lines('// retry because the gateway drops the first call', 'retry();')).includes('restating-comment'));
     assert.ok(!ruleIds('a.js', lines('// get the user record and the account record', 'const user = getUser(id);')).includes('restating-comment'));
+  });
+  test('leaves section labels and commented-out code alone (calibration)', () => {
+    assert.ok(!ruleIds('a.js', lines('// view', 'if (!view) {')).includes('restating-comment'));
+    assert.ok(!ruleIds('a.sh', lines('# \u2500\u2500\u2500 USER ROLES \u2500\u2500\u2500', 'user_roles) list_user_roles ;;')).includes('restating-comment'));
+    assert.ok(!ruleIds('a.js', lines('// ===== user roles =====', 'const userRoles = listUserRoles();')).includes('restating-comment'));
+    assert.ok(!ruleIds('a.js', lines('// -- User Roles --', 'userRoles: [')).includes('restating-comment'));
+    assert.ok(!ruleIds('a.js', lines('// content-type', "if (!this.get('Content-Type')) {")).includes('restating-comment'));
+    assert.ok(!ruleIds('a.py', lines("# source_suffix = ['.rst', '.md']", 'source_suffix = ".rst"')).includes('restating-comment'));
+    assert.ok(!ruleIds('a.go', lines('// Test active help config for a flag', 'activeHelpCfg = "a config for a flag"')).includes('restating-comment'));
+  });
+  test('leaves Go doc comments and multi-line comments alone (calibration)', () => {
+    assert.ok(!ruleIds('a.go', lines('// SetHelpCommand sets help command.', 'func (c *Command) SetHelpCommand(cmd *Command) {')).includes('restating-comment'));
+    assert.ok(!ruleIds('a.go', lines('// flags is full set of flags.', 'flags *flag.FlagSet')).includes('restating-comment'));
+    assert.ok(ruleIds('a.go', lines('// set TraverseChildren to true on the root cmd', 'rootCmd.TraverseChildren = true')).includes('restating-comment'));
+    assert.ok(ruleIds('a.js', lines('// load the user', 'const user = loadUser(id);')).includes('restating-comment'));
+    assert.ok(!ruleIds('a.js', lines('// The session expires after one hour, so', '// load the user', 'const user = loadUser(id);')).includes('restating-comment'));
   });
   test('needs the code line to be added right below', () => {
     assert.ok(!ruleIds('a.js', [[1, '// return the result'], [5, 'return result;']]).includes('restating-comment'));

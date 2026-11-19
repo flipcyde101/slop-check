@@ -12,13 +12,14 @@ function ruleIds(message, enabled) {
   return checkCommit({ sha: SHA, message }, enabled).map((finding) => finding.rule);
 }
 
-test('flags em dashes and buzzwords in commit messages', () => {
-  assert.deepEqual(ruleIds(`feat: add cache ${EM_DASH} faster reads`, DEFAULT_RULES), ['em-dash']);
-  assert.deepEqual(ruleIds('feat: seamless retries', DEFAULT_RULES), ['buzzword']);
+test('flags em dashes (when on) and buzzwords in commit messages', () => {
+  assert.deepEqual(ruleIds(`feat: add cache ${EM_DASH} faster reads`, ALL_RULES), ['em-dash']);
+  assert.deepEqual(ruleIds(`feat: add cache ${EM_DASH} faster reads`, DEFAULT_RULES), []);
+  assert.deepEqual(ruleIds('feat: supercharge retries', DEFAULT_RULES), ['buzzword']);
 });
 
 test('commit findings carry the short sha', () => {
-  const findings = checkCommit({ sha: SHA, message: 'feat: seamless retries' }, DEFAULT_RULES);
+  const findings = checkCommit({ sha: SHA, message: 'feat: supercharge retries' }, DEFAULT_RULES);
   assert.deepEqual(findings, [
     { rule: 'buzzword', weight: 1, message: 'Marketing words where plain words would do.', commit: 'abc1234' },
   ]);

@@ -5,10 +5,11 @@ import { checkFile } from '../src/check.js';
 
 const EM_DASH = String.fromCharCode(0x2014);
 const DEFAULT_RULES = new Set(RULES.filter((rule) => rule.defaultOn).map((rule) => rule.id));
+const ALL_RULES = new Set(RULES.map((rule) => rule.id));
 
-function ruleIds(path, lines) {
+function ruleIds(path, lines, enabled = ALL_RULES) {
   const file = { path, lines: lines.map((text, index) => ({ number: index + 1, text })) };
-  return checkFile(file, DEFAULT_RULES).map((finding) => finding.rule);
+  return checkFile(file, enabled).map((finding) => finding.rule);
 }
 
 function assertFlags(rule, path, line) {
@@ -48,13 +49,20 @@ describe('debug-leftover', () => {
     assertClean('debug-leftover', 'a.js', "console.log('Saved 3 files')");
     assertClean('debug-leftover', 'src/a.test.js', 'debugger;');
   });
+  test('leaves format strings and doc examples alone (calibration)', () => {
+    assertClean('debug-leftover', 'a.js', "verbose && console.log('\\n   %s:', name);");
+    assertClean('debug-leftover', 'scripts/report.js', "console.log('Rows found:', rows.length);");
+    assertClean('debug-leftover', 'src/a.js', "console.log('============');");
+    assertClean('debug-leftover', 'src/a.js', "console.log('\\n--- summary ---');");
+    const docExample = ['/**', '@example', "console.log('Ky error occurred:', error.message);", '*/'];
+    assert.ok(!ruleIds('a.ts', docExample).includes('debug-leftover'));
+  });
 });
 
 describe('type-escape', () => {
   test('flags silenced types', () => {
     assertFlags('type-escape', 'a.ts', 'const x = y as any;');
     assertFlags('type-escape', 'a.ts', 'const f = (a: any) => a;');
-    assertFlags('type-escape', 'a.tsx', 'const t = y as unknown as T;');
     assertFlags('type-escape', 'a.ts', '// @ts-ignore');
     assertFlags('type-escape', 'a.py', 'x = f()  # type: ignore');
   });
@@ -63,6 +71,8 @@ describe('type-escape', () => {
     assertClean('type-escape', 'a.js', 'const x = y as any;');
     assertClean('type-escape', 'a.ts', 'const company = getCompany();');
     assertClean('type-escape', 'a.ts', "const label = 'pick: any';");
+    assertClean('type-escape', 'a.tsx', 'const t = y as unknown as T;');
+    assertClean('type-escape', 'test/hooks.ts', 'parent.extend((options: any) => {');
   });
 });
 
@@ -76,14 +86,16 @@ describe('change-history-comment', () => {
   });
   test('leaves comments about the code alone', () => {
     assertClean('change-history-comment', 'a.js', '// Added items stay in the queue until flush');
+    assertClean('change-history-comment', 'a.js', '// Fixed / variable rates use the base price');
+    assertClean('change-history-comment', 'a.js', "// Added to each user's roles; roles already there stay.");
+    const continued = ruleIds('a.js', ['// The proxy check runs once the middleware is', '// added to the chain.']);
+    assert.ok(!continued.includes('change-history-comment'));
   });
 });
 
 describe('narration-comment', () => {
   test('flags the AI talking', () => {
-    assertFlags('narration-comment', 'a.js', "// Let's validate the input");
     assertFlags('narration-comment', 'a.js', '// Let me check');
-    assertFlags('narration-comment', 'a.js', '// Now we save');
     assertFlags('narration-comment', 'a.js', '// As requested, retry twice');
     assertFlags('narration-comment', 'a.js', "// I've added a guard");
     assertFlags('narration-comment', 'a.js', '// Step 1: parse');
@@ -91,16 +103,25 @@ describe('narration-comment', () => {
   test('leaves normal comments alone', () => {
     assertClean('narration-comment', 'a.js', '// lets the caller retry');
   });
+  test('leaves common human phrasing alone (calibration)', () => {
+    assertClean('narration-comment', 'a.go', "// Let's add the --help and --version flag ourselves");
+    assertClean('narration-comment', 'a.js', '// here we validate the API key,');
+    assertClean('narration-comment', 'a.go', '// Here we are validating the existing type');
+    assertClean('narration-comment', 'a.js', '// Now we save');
+  });
 });
 
 describe('disclaimer-comment', () => {
   test('flags disclaimers', () => {
     assertFlags('disclaimer-comment', 'a.js', '// In a real application you would cache this');
     assertFlags('disclaimer-comment', 'a.js', '// For demonstration purposes');
-    assertFlags('disclaimer-comment', 'a.py', '# for simplicity we skip retries');
     assertFlags('disclaimer-comment', 'a.js', '// This is a simplified version');
     assertFlags('disclaimer-comment', 'a.js', '// You may want to add logging');
     assertFlags('disclaimer-comment', 'a.js', '// In production you would use a queue');
+  });
+  test('leaves explanations alone (calibration)', () => {
+    assertClean('disclaimer-comment', 'a.js', '// Without this you would need to');
+    assertClean('disclaimer-comment', 'a.py', "# For simplicity, we're going to assume that the client cert is");
   });
 });
 
@@ -121,8 +142,17 @@ describe('placeholder-value', () => {
 
 describe('emoji-in-code', () => {
   test('flags emoji in code', () => {
-    assertFlags('emoji-in-code', 'a.js', 'log("✅ done")');
+    assertFlags('emoji-in-code', 'a.js', 'console.log("✅ done")');
+    assertFlags('emoji-in-code', 'a.js', "logger.info('🚀 started', { port })");
+    assertFlags('emoji-in-code', 'a.py', 'print("✅ done")');
     assertFlags('emoji-in-code', 'a.js', '// 🚀 fast path');
+  });
+  test('leaves data, docs, tests and CI files alone (calibration)', () => {
+    assertClean('emoji-in-code', '.github/workflows/ci.yml', 'group: "${{ github.workflow }} ✨ ${{ github.ref }}"');
+    assertClean('emoji-in-code', '.github/workflows/codeql.yml', '# 📚 See https://docs.github.com/en/actions');
+    assertClean('emoji-in-code', 'test/body-size.ts', "t.is(getBodySize('😀'), 4);");
+    assertClean('emoji-in-code', 'source/ky.ts', "//=> `{data: '🦄'}`");
+    assertClean('emoji-in-code', 'src/a.js', "const icon = '🦄';");
   });
   test('leaves markdown and copyright signs alone', () => {
     assertClean('emoji-in-code', 'README.md', '## Done ✅');
@@ -131,7 +161,10 @@ describe('emoji-in-code', () => {
 });
 
 describe('em-dash', () => {
-  test('flags em dashes in code and markdown', () => {
+  test('is off by default (calibration)', () => {
+    assert.ok(!ruleIds('README.md', [`Fast ${EM_DASH} and safe.`], DEFAULT_RULES).includes('em-dash'));
+  });
+  test('flags em dashes in code and markdown when on', () => {
     assertFlags('em-dash', 'a.js', `// fast ${EM_DASH} and safe`);
     assertFlags('em-dash', 'README.md', `Fast ${EM_DASH} and safe.`);
   });
@@ -144,12 +177,16 @@ describe('em-dash', () => {
 describe('buzzword', () => {
   test('flags buzzwords in comments and markdown', () => {
     assertFlags('buzzword', 'a.js', '// delve into the data');
-    assertFlags('buzzword', 'a.py', '# seamless sync with the server');
+    assertFlags('buzzword', 'a.py', '# a testament to good design');
     assertFlags('buzzword', 'README.md', "It's worth noting that this is fast.");
   });
   test('leaves code alone', () => {
     assertClean('buzzword', 'a.js', 'const seamlessMode = true;');
     assertClean('buzzword', 'a.js', 'const mode = "seamless";');
+  });
+  test('leaves normal prose and names alone (calibration)', () => {
+    assertClean('buzzword', 'a.js', ' * work seamlessly within Express.');
+    assertClean('buzzword', 'README.md', '- [Delve](https://github.com/derekparker/delve)');
   });
 });
 
