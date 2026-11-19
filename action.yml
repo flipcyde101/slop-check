@@ -1,0 +1,25 @@
+name: slop-check
+description: Catch AI slop in your diff before your reviewer does.
+author: Tisankan Jeyakumar
+branding:
+  icon: filter
+  color: green
+inputs:
+  max-score:
+    description: Fail the job when the slop score is above this number (0 to 100). Leave empty to never fail.
+    required: false
+    default: ''
+  comment:
+    description: Post one PR comment with the score and keep it updated. Set to false to only write the job summary.
+    required: false
+    default: 'true'
+  github-token:
+    description: Token used to post the PR comment.
+    required: false
+    default: ${{ github.token }}
+outputs:
+  score:
+    description: The slop score, from 0 to 100.
+runs:
+  using: node24
+  main: src/action.js
