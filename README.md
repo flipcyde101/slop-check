@@ -47,22 +47,23 @@ Commit message: `feat: supercharge user caching`. <!-- slop-check-ignore -->
 Run it inside any git repo, on any branch. No config, no dependencies, no API keys.
 
 ```bash
-npx github:tisankanj/slop-check
+npx --allow-git=all github:tisankanj/slop-check
 ```
 
 It compares your branch with `main` (or `master`, or `origin/HEAD`) and includes
-uncommitted changes to tracked files. Needs Node.js 20 or newer.
+uncommitted changes to tracked files. Needs Node.js 20 or newer. npm 12 installs
+from GitHub only with `--allow-git=all`; older npm versions ignore the flag.
 
 ```bash
-npx github:tisankanj/slop-check --all       # every tracked file
-npx github:tisankanj/slop-check --staged    # staged changes, for a git hook
-npx github:tisankanj/slop-check develop     # compare with another base
+npx --allow-git=all github:tisankanj/slop-check --all       # every tracked file
+npx --allow-git=all github:tisankanj/slop-check --staged    # staged changes, for a git hook
+npx --allow-git=all github:tisankanj/slop-check develop     # compare with another base
 ```
 
 ## What's your repo's slop score?
 
 ```bash
-npx github:tisankanj/slop-check --all --badge
+npx --allow-git=all github:tisankanj/slop-check --all --badge
 ```
 
 That prints a badge for your README, like the one at the top of this page:
@@ -176,7 +177,7 @@ skip that line.
 
 ```bash
 # .git/hooks/pre-commit
-npx --yes github:tisankanj/slop-check --staged --max-score 30
+npx --yes --allow-git=all github:tisankanj/slop-check --staged --max-score 30
 ```
 
 ## All options
