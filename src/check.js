@@ -51,3 +51,31 @@ export function checkFile(file, enabled) {
 
   return findings;
 }
+
+// Commit messages are plain text, so only rules that also read markdown apply,
+// plus the commit-only rules.
+const COMMIT_TEXT = { path: '', style: 'text', extension: '', isTest: false, isExample: false };
+
+export function checkCommit(commit, enabled) {
+  const rules = RULES.filter((rule) => {
+    if (!enabled.has(rule.id)) {
+      return false;
+    }
+    return rule.scope === 'commit' || rule.appliesTo(COMMIT_TEXT);
+  });
+  const findings = [];
+
+  for (const text of commit.message.split('\n')) {
+    if (text.includes(IGNORE_MARKER)) {
+      continue;
+    }
+    const ctx = { text, comment: null, next: null, file: COMMIT_TEXT };
+    for (const rule of rules) {
+      if (rule.check(ctx)) {
+        findings.push({ rule: rule.id, weight: rule.weight, message: rule.message, commit: commit.sha.slice(0, 7) });
+      }
+    }
+  }
+
+  return findings;
+}

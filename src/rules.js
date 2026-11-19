@@ -72,6 +72,32 @@ const BUZZWORDS = [
   /\bnavigat(?:e|ing) the complexities\b/i,
 ];
 
+const EMPTY_CATCH_SAME_LINE = /\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}/;
+const CATCH_OPENS_BLOCK = /\bcatch\s*(?:\([^)]*\))?\s*\{\s*$/;
+const PYTHON_EXCEPT_PASS = /^\s*except\b[^:]*:\s*pass\s*$/;
+const PYTHON_EXCEPT_OPENS = /^\s*except\b([^:]*):\s*$/;
+
+const RETHROW_SAME_LINE = /\bcatch\s*\(\s*(\w+)\s*\)\s*\{\s*throw\s+(\w+)\s*;?\s*\}/;
+const CATCH_WITH_NAME_OPENS = /\bcatch\s*\(\s*(\w+)\s*\)\s*\{\s*$/;
+
+const AI_ATTRIBUTION = [
+  /^co-authored-by:.*\b(?:claude|copilot|cursor|chatgpt|openai|gemini|codeium|windsurf|devin)\b/i,
+  /^co-authored-by:.*noreply@anthropic\.com/i,
+  /\bgenerated (?:with|by) \[?(?:claude|chatgpt|copilot|cursor|gemini|codex|windsurf)/i,
+  /^(?:created|written|authored|powered) (?:with|by) \[?(?:claude|chatgpt|copilot|cursor|gemini|codex)/i,
+];
+
+const STOP_WORDS = ['the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'then', 'all'];
+
+// Code says some verbs with symbols, so `// increment the counter` matches `counter++`.
+const SYMBOL_WORDS = [
+  [/\+\+/, 'increment'],
+  [/--/, 'decrement'],
+  [/\bif\s*\(/, 'check'],
+  [/[^=!<>]=[^=>]/, 'set'],
+  [/\bnew\s/, 'create'],
+];
+
 function matchesAny(text, patterns) {
   for (const pattern of patterns) {
     if (pattern.test(text)) {
@@ -105,6 +131,75 @@ function isHistoryComment(comment) {
   return nextWords[0].endsWith('ing') || nextWords[1].endsWith('ing');
 }
 
+function isEmptyCatch(ctx) {
+  const code = withoutStrings(ctx.text);
+  const nextLine = ctx.next ? ctx.next.text.trim() : '';
+  if (ctx.file.extension === 'py') {
+    return PYTHON_EXCEPT_PASS.test(code) || (PYTHON_EXCEPT_OPENS.test(code) && nextLine === 'pass');
+  }
+  return EMPTY_CATCH_SAME_LINE.test(code) || (CATCH_OPENS_BLOCK.test(code) && nextLine.startsWith('}'));
+}
+
+function isCatchRethrow(ctx) {
+  const code = withoutStrings(ctx.text);
+  const nextLine = ctx.next ? ctx.next.text.trim() : '';
+  if (ctx.file.extension === 'py') {
+    const opens = PYTHON_EXCEPT_OPENS.exec(code);
+    if (!opens) {
+      return false;
+    }
+    const name = /\bas\s+(\w+)\s*$/.exec(opens[1]);
+    return nextLine === 'raise' || (name !== null && nextLine === `raise ${name[1]}`);
+  }
+  const sameLine = RETHROW_SAME_LINE.exec(code);
+  if (sameLine) {
+    return sameLine[1] === sameLine[2];
+  }
+  const opens = CATCH_WITH_NAME_OPENS.exec(code);
+  return opens !== null && new RegExp(`^throw\\s+${opens[1]}\\s*;?$`).test(nextLine);
+}
+
+function isCommentOnlyLine(text) {
+  return /^\s*(?:\/\/|\/\*|\*|#|--)/.test(text);
+}
+
+function commentWords(comment) {
+  const words = comment.toLowerCase().split(/[^a-z]+/);
+  return words.filter((word) => word.length >= 3 && !STOP_WORDS.includes(word));
+}
+
+function codeWords(code) {
+  const words = new Set();
+  const identifiers = code.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/);
+  for (const word of identifiers) {
+    words.add(word);
+  }
+  for (const [pattern, word] of SYMBOL_WORDS) {
+    if (pattern.test(code)) {
+      words.add(word);
+    }
+  }
+  return words;
+}
+
+function isRestatingComment(ctx) {
+  if (ctx.comment === null || ctx.next === null || !isCommentOnlyLine(ctx.text) || isCommentOnlyLine(ctx.next.text)) {
+    return false;
+  }
+  const words = commentWords(ctx.comment);
+  if (words.length === 0 || words.length > 6) {
+    return false;
+  }
+  const code = codeWords(ctx.next.text);
+  let matched = 0;
+  for (const word of words) {
+    if (code.has(word) || code.has(word.replace(/s$/, ''))) {
+      matched += 1;
+    }
+  }
+  return matched / words.length >= 0.75;
+}
+
 export const RULES = [
   {
     id: 'empty-catch',
@@ -113,7 +208,7 @@ export const RULES = [
     scope: 'line',
     message: 'Error swallowed. Log it, handle it, or let it throw.',
     appliesTo: isCodeFile,
-    check: () => false,
+    check: isEmptyCatch,
   },
   {
     id: 'placeholder-code',
@@ -131,7 +226,7 @@ export const RULES = [
     scope: 'line',
     message: 'This try/catch does nothing. Remove it.',
     appliesTo: isCodeFile,
-    check: () => false,
+    check: isCatchRethrow,
   },
   {
     id: 'debug-leftover',
@@ -202,7 +297,7 @@ export const RULES = [
     scope: 'line',
     message: 'Comment repeats the next line. Say why, or delete it.',
     appliesTo: isCodeFile,
-    check: () => false,
+    check: isRestatingComment,
   },
   {
     id: 'emoji-in-code',
@@ -233,5 +328,14 @@ export const RULES = [
       const text = ctx.file.style === 'text' ? ctx.text : ctx.comment;
       return text !== null && matchesAny(text, BUZZWORDS);
     },
+  },
+  {
+    id: 'ai-attribution',
+    weight: HIGH,
+    defaultOn: false,
+    scope: 'commit',
+    message: 'Tool credit in the commit message.',
+    appliesTo: () => false,
+    check: (ctx) => matchesAny(ctx.text.trim(), AI_ATTRIBUTION),
   },
 ];
