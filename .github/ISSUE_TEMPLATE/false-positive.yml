@@ -1,0 +1,30 @@
+name: False positive
+description: slop-check flagged a line a careful person wrote on purpose.
+labels: ["false positive"]
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule
+      description: The rule id from the report, for example restating-comment.
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: The flagged line, with the line above and below
+      description: Remove anything private before pasting.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this line is fine
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: slop-check version
+      description: Output of slop-check --version.

@@ -201,6 +201,11 @@ finding has `rule`, `weight`, `message`, and either `file` and `line` or `commit
 
 ## Contributing
 
+False positives are the most useful thing you can report.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to run the tests and add a rule,
+and there are [good first issues](https://github.com/tisankanj/slop-check/labels/good%20first%20issue)
+ready to pick up.
+
 A new rule is one object in [src/rules.js](src/rules.js), a test file with
 "flags" and "does not flag" cases, a section in [docs/rules.md](docs/rules.md), and
 a run against a few human-written repos to show it stays quiet. `node --test` runs

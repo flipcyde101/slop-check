@@ -1,0 +1,23 @@
+name: Rule idea
+description: AI left something in a diff that no rule catches.
+labels: ["rule idea"]
+body:
+  - type: textarea
+    id: example
+    attributes:
+      label: An example of the leftover
+      description: A few lines of code or a commit message. Remove anything private.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why a reviewer would ask to remove it
+    validations:
+      required: true
+  - type: textarea
+    id: human
+    attributes:
+      label: When would a careful person write the same thing on purpose?
+      description: This decides whether the rule can stay quiet on human code.
