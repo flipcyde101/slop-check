@@ -37,7 +37,8 @@ way.
 | `src/score.js` | Score, label and badge |
 | `src/report.js` | Text and JSON output |
 | `src/config.js` | `.slopcheckrc.json` and ignore patterns |
-| `src/action.js` | GitHub Action entry |
+| `src/action.js` | GitHub Action: summary, PR comment, pass or fail |
+| `src/action-main.js` | The file GitHub runs; it only starts `src/action.js` |
 
 ## Adding or changing a rule
 

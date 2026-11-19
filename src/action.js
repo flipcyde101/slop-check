@@ -1,9 +1,10 @@
 // GitHub Action entry: runs the check on a pull request, writes the job summary,
 // and keeps one PR comment up to date with the score.
 
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import { SlopCheckError } from './git.js';
+import { loadConfig } from './config.js';
+import { commitExists, findRepoRoot, SlopCheckError } from './git.js';
 import { formatText } from './report.js';
 import { runCheck } from './run.js';
 import { badgeMarkdown } from './score.js';
@@ -29,14 +30,31 @@ function readEvent(env) {
   return JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
 }
 
-function pickBaseSha(eventName, event) {
+function pickBaseSha(eventName, event, root) {
   if (event.pull_request) {
     return event.pull_request.base.sha;
   }
-  if (eventName === 'push' && event.before && event.before !== ZERO_SHA) {
+  // After a force push the old `before` commit is gone, so use the default base.
+  if (eventName === 'push' && event.before && event.before !== ZERO_SHA && commitExists(root, event.before)) {
     return event.before;
   }
   return undefined;
+}
+
+// A fence longer than any backtick run in the text, so file names cannot close it.
+function codeFence(text) {
+  let longest = 0;
+  for (const run of text.match(/`+/g) || []) {
+    longest = Math.max(longest, run.length);
+  }
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
+// File names are printed in the log. Pausing workflow commands stops a file named
+// `::error::x.js` from being run as a command.
+function writeLog(text) {
+  const token = randomUUID();
+  process.stdout.write(`::stop-commands::${token}\n${text}::${token}::\n`);
 }
 
 function buildReport(result) {
@@ -44,13 +62,14 @@ function buildReport(result) {
   if (text.length > MAX_REPORT_LENGTH) {
     text = `${text.slice(0, MAX_REPORT_LENGTH)}\n... report cut short, run slop-check locally for the rest.\n`;
   }
+  const fence = codeFence(text);
   return [
     MARKER,
     `### Slop score: ${result.score}/100 (${result.label})`,
     '',
-    '```text',
+    `${fence}text`,
     text.trimEnd(),
-    '```',
+    fence,
     '',
     badgeMarkdown(result.score, result.color),
     '',
@@ -85,12 +104,18 @@ export async function runAction({ env, fetchFn, cwd }) {
   const event = readEvent(env);
 
   let result;
+  let config;
   try {
     const validMaxScore = Number.isInteger(inputs.maxScore) && inputs.maxScore >= 0 && inputs.maxScore <= 100;
     if (inputs.maxScore !== null && !validMaxScore) {
       throw new SlopCheckError('max-score must be a whole number from 0 to 100');
     }
-    result = runCheck({ cwd, mode: 'branch', baseSha: pickBaseSha(env.GITHUB_EVENT_NAME, event) });
+    const root = findRepoRoot(cwd);
+    config = loadConfig(root);
+    for (const warning of config.warnings) {
+      process.stdout.write(`::warning::slop-check: ${warning}\n`);
+    }
+    result = runCheck({ cwd, mode: 'branch', baseSha: pickBaseSha(env.GITHUB_EVENT_NAME, event, root), config });
   } catch (error) {
     if (!(error instanceof SlopCheckError)) {
       throw error;
@@ -99,7 +124,7 @@ export async function runAction({ env, fetchFn, cwd }) {
     return { score: null, failed: true };
   }
 
-  process.stdout.write(formatText(result, { color: false }));
+  writeLog(formatText(result, { color: false }));
   const report = buildReport(result);
   if (env.GITHUB_STEP_SUMMARY) {
     appendFileSync(env.GITHUB_STEP_SUMMARY, report);
@@ -122,18 +147,11 @@ export async function runAction({ env, fetchFn, cwd }) {
     }
   }
 
-  const failed = inputs.maxScore !== null && result.score > inputs.maxScore;
+  const maxScore = inputs.maxScore === null ? config.maxScore : inputs.maxScore;
+  const failed = maxScore !== null && result.score > maxScore;
   if (failed) {
-    process.stdout.write(`::error::Slop score ${result.score} is above max-score ${inputs.maxScore}.\n`);
+    process.stdout.write(`::error::Slop score ${result.score} is above max-score ${maxScore}.\n`);
   }
   return { score: result.score, failed };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const cwd = process.env.GITHUB_WORKSPACE || process.cwd();
-  runAction({ env: process.env, fetchFn: fetch, cwd }).then((outcome) => {
-    if (outcome.failed) {
-      process.exitCode = 1;
-    }
-  });
-}

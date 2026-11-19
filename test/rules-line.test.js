@@ -30,6 +30,7 @@ describe('placeholder-code', () => {
   });
   test('leaves normal comments alone', () => {
     assertClean('placeholder-code', 'a.js', '// TODO: cache this');
+    assertClean('placeholder-code', 'a.js', '// TODO: implement pagination');
     assertClean('placeholder-code', 'a.js', 'const rest = code.slice(1)');
   });
 });
@@ -52,6 +53,7 @@ describe('debug-leftover', () => {
   test('leaves format strings and doc examples alone (calibration)', () => {
     assertClean('debug-leftover', 'a.js', "verbose && console.log('\\n   %s:', name);");
     assertClean('debug-leftover', 'scripts/report.js', "console.log('Rows found:', rows.length);");
+    assertClean('debug-leftover', 'src/server.js', "console.log('Listening on port:', port);");
     assertClean('debug-leftover', 'src/a.js', "console.log('============');");
     assertClean('debug-leftover', 'src/a.js', "console.log('\\n--- summary ---');");
     const docExample = ['/**', '@example', "console.log('Ky error occurred:', error.message);", '*/'];
@@ -87,6 +89,8 @@ describe('change-history-comment', () => {
   test('leaves comments about the code alone', () => {
     assertClean('change-history-comment', 'a.js', '// Added items stay in the queue until flush');
     assertClean('change-history-comment', 'a.js', '// Fixed / variable rates use the base price');
+    assertClean('change-history-comment', 'a.js', '// Fixed string length for the id column');
+    assertClean('change-history-comment', 'a.js', '// Updated mapping table lives in the cache');
     assertClean('change-history-comment', 'a.js', "// Added to each user's roles; roles already there stay.");
     const continued = ruleIds('a.js', ['// The proxy check runs once the middleware is', '// added to the chain.']);
     assert.ok(!continued.includes('change-history-comment'));
@@ -98,7 +102,6 @@ describe('narration-comment', () => {
     assertFlags('narration-comment', 'a.js', '// Let me check');
     assertFlags('narration-comment', 'a.js', '// As requested, retry twice');
     assertFlags('narration-comment', 'a.js', "// I've added a guard");
-    assertFlags('narration-comment', 'a.js', '// Step 1: parse');
   });
   test('leaves normal comments alone', () => {
     assertClean('narration-comment', 'a.js', '// lets the caller retry');
@@ -108,6 +111,8 @@ describe('narration-comment', () => {
     assertClean('narration-comment', 'a.js', '// here we validate the API key,');
     assertClean('narration-comment', 'a.go', '// Here we are validating the existing type');
     assertClean('narration-comment', 'a.js', '// Now we save');
+    assertClean('narration-comment', 'build.sh', '# Step 1: build');
+    assertClean('narration-comment', 'a.js', '// Step 1: parse');
   });
 });
 
@@ -206,5 +211,14 @@ describe('every line', () => {
     assert.deepEqual(checkFile(file, DEFAULT_RULES), [
       { rule: 'debug-leftover', weight: 3, message: 'Debug output left behind.', file: 'a.js', line: 7 },
     ]);
+  });
+});
+
+describe('speed', () => {
+  test('an unclosed quote followed by many escapes finishes fast', () => {
+    const line = `const USAGE: &'static str = "Usage:${'\\n  -x'.repeat(22)}`;
+    const start = performance.now();
+    ruleIds('main.rs', [line]);
+    assert.ok(performance.now() - start < 100, `took ${performance.now() - start} ms`);
   });
 });

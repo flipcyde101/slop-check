@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, appendFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCheck } from '../src/run.js';
@@ -148,4 +148,50 @@ test('a repository with no commits throws a readable error', () => {
     () => runCheck({ cwd: dir, mode: 'branch' }),
     (error) => error instanceof SlopCheckError && /no commits yet/.test(error.message),
   );
+});
+
+test('all mode skips tracked directories such as submodules or symlinks', () => {
+  const dir = makeRepo();
+  mkdirSync(join(dir, 'real'));
+  writeFileSync(join(dir, 'real', 'x.txt'), 'x\n');
+  symlinkSync('real', join(dir, 'linked.js'));
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-q', '-m', 'chore: link');
+  assert.doesNotThrow(() => runCheck({ cwd: dir, mode: 'all' }));
+});
+
+test('renamed files are not treated as new even when diff.renames is off', () => {
+  const dir = makeRepo();
+  commitFile(dir, 'old.js', 'debugger;\n');
+  git(dir, 'config', 'diff.renames', 'false');
+  git(dir, 'checkout', '-q', '-b', 'feature');
+  git(dir, 'mv', 'old.js', 'new.js');
+  git(dir, 'commit', '-q', '-m', 'refactor: rename');
+  assert.deepEqual(runCheck({ cwd: dir, mode: 'branch' }).findings, []);
+});
+
+test('a shallow clone gets a hint about fetching full history', () => {
+  const origin = makeRepo();
+  commitFile(origin, 'b.js', 'const b = 2;\n');
+  git(origin, 'checkout', '-q', '-b', 'feature');
+  commitFile(origin, 'c.js', 'const c = 3;\n');
+  commitFile(origin, 'd.js', 'const d = 4;\n');
+  git(origin, 'checkout', '-q', 'main');
+  commitFile(origin, 'e.js', 'const e = 5;\n');
+  const clone = mkdtempSync(join(tmpdir(), 'slop-check-shallow-'));
+  git(clone, 'clone', '-q', '--depth', '1', '--no-single-branch', `file://${origin}`, 'repo');
+  const repo = join(clone, 'repo');
+  git(repo, 'checkout', '-q', 'feature');
+  assert.throws(
+    () => runCheck({ cwd: repo, mode: 'branch' }),
+    (error) => error instanceof SlopCheckError && /shallow/.test(error.message) && /fetch-depth: 0/.test(error.message),
+  );
+});
+
+test('staged mode works in a repo with no commits yet', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'slop-check-first-'));
+  git(dir, 'init', '-q', '-b', 'main');
+  writeFileSync(join(dir, 'a.js'), 'debugger;\n');
+  git(dir, 'add', 'a.js');
+  assert.deepEqual(ruleIds(runCheck({ cwd: dir, mode: 'staged' })), ['debug-leftover']);
 });

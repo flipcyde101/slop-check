@@ -37,3 +37,10 @@ test('isExampleFile', () => {
   assert.equal(isExampleFile('config/app.sample.json'), true);
   assert.equal(isExampleFile('src/examples.js'), false);
 });
+
+test('isTestFile knows Go, Python and Ruby test layouts', () => {
+  for (const path of ['pkg/user_test.go', 'tests_x/test_user.py', 'app/user_test.py', 'spec/user_spec.rb', 'lib/user_spec.rb']) {
+    assert.equal(isTestFile(path), true, path);
+  }
+  assert.equal(isTestFile('src/contest.py'), false);
+});

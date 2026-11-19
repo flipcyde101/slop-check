@@ -76,3 +76,21 @@ test('default ignores cover dependencies, builds and lockfiles', () => {
   }
   assert.equal(isIgnored('src/distance.js', config), false);
 });
+
+test('a config that is not an object gives a warning instead of crashing', () => {
+  const config = loadConfig(dirWithConfig('null'));
+  assert.equal(config.warnings.length, 1);
+  assert.deepEqual(config.rules, {});
+});
+
+test('"rules" that is not an object gives one warning', () => {
+  const config = loadConfig(dirWithConfig('{ "rules": "off" }'));
+  assert.equal(config.warnings.length, 1);
+  assert.match(config.warnings[0], /"rules"/);
+});
+
+test('generated files are ignored by default', () => {
+  const config = loadConfig(dirWithConfig());
+  assert.equal(isIgnored('src/client.gen.ts', config), true);
+  assert.equal(isIgnored('src/api.generated.ts', config), true);
+});

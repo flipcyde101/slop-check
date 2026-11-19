@@ -20,6 +20,8 @@ export const DEFAULT_IGNORE = [
   '*.min.js',
   '*.map',
   '*.snap',
+  '*.gen.*',
+  '*.generated.*',
 ];
 
 function globToRegExp(pattern) {
@@ -51,6 +53,10 @@ export function matchGlob(pattern, path) {
   return globToRegExp(fullPattern).test(path);
 }
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export function loadConfig(rootDir) {
   const config = { rules: {}, ignore: [], maxScore: null, warnings: [] };
   const path = join(rootDir, CONFIG_FILE);
@@ -64,6 +70,15 @@ export function loadConfig(rootDir) {
   } catch (error) {
     config.warnings.push(`could not read ${CONFIG_FILE}: ${error.message}`);
     return config;
+  }
+
+  if (!isPlainObject(raw)) {
+    config.warnings.push(`${CONFIG_FILE} must hold a JSON object`);
+    return config;
+  }
+  if (raw.rules !== undefined && !isPlainObject(raw.rules)) {
+    config.warnings.push(`"rules" in ${CONFIG_FILE} must be an object such as { "em-dash": "on" }`);
+    raw.rules = {};
   }
 
   const knownIds = RULES.map((rule) => rule.id);

@@ -3,7 +3,7 @@
 import { checkCommit, checkFile, MAX_LINE_LENGTH } from './check.js';
 import { enabledRules, isIgnored, loadConfig } from './config.js';
 import { parseDiff } from './diff.js';
-import { findBase, findBaseFromSha, findRepoRoot, getAllFiles, getCommits, getDiffText } from './git.js';
+import { findBase, findBaseFromSha, findRepoRoot, getAllFiles, getCommits, getDiffText, requireCommits } from './git.js';
 import { getLanguage } from './languages.js';
 import { scoreFindings } from './score.js';
 
@@ -34,6 +34,7 @@ export function runCheck(options) {
   } else if (options.mode === 'staged') {
     files = parseDiff(getDiffText(root, { mode: 'staged' })).filter((file) => isChecked(file.path));
   } else {
+    requireCommits(root);
     base = options.baseSha ? findBaseFromSha(root, options.baseSha) : findBase(root, options.ref);
     const diffText = getDiffText(root, { mode: 'branch', base: base ? base.sha : null });
     files = parseDiff(diffText).filter((file) => isChecked(file.path));

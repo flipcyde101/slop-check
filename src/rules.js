@@ -11,7 +11,7 @@ const TYPESCRIPT_EXTENSIONS = ['ts', 'tsx', 'mts', 'cts'];
 
 const PLACEHOLDER_CODE = [
   /^(?:\.{3}|…)\s*(?:existing|rest of|remaining|other|previous|unchanged)\b/i,
-  /^todo:?\s*implement\b/i,
+  /^todo:?\s*implement(?:\s+(?:this|me|it|here))?\s*\.?$/i,
   /\byour code (?:goes )?here\b/i,
   /\bimplementation goes here\b/i,
 ];
@@ -21,7 +21,7 @@ const DEBUG_OUTPUT = [
   /\bbreakpoint\(\)/,
   /\bpdb\.set_trace\(\)/,
   /\bconsole\.debug\(/,
-  /\bconsole\.log\(\s*(['"`])[A-Za-z][\w ]*:\s*\1\s*,/,
+  /\bconsole\.log\(\s*(['"`])[A-Za-z]\w*:\s*\1\s*,/,
   /\bconsole\.log\(\s*(['"`])[^'"`]*(?:\bdebug\b|\bhere\b|\btesting\b|\btest\b|>>>)/i,
 ];
 
@@ -34,7 +34,7 @@ const HISTORY_NEXT_WORDS = [
   'redundant', 'old',
 ];
 
-const NARRATION = /^(?:let me|now let[’']s|as requested|as you requested|i[’']ve|i have|i[’']ll|step \d+\s*[:.)])/i;
+const NARRATION = /^(?:let me|now let[’']s|as requested|as you requested|i[’']ve|i have|i[’']ll)/i;
 
 const DISCLAIMERS = [
   /\bin a real(?:[- ]world)? (?:app|application|project|scenario|system|implementation)\b/i,
@@ -130,7 +130,7 @@ function isScriptFile(file) {
 
 // Blank out string contents so `'pick: any'` is not read as a type.
 function withoutStrings(text) {
-  return text.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '""');
+  return text.replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, '""');
 }
 
 function isHistoryComment(comment) {
@@ -145,7 +145,7 @@ function isHistoryComment(comment) {
   if (HISTORY_NEXT_WORDS.includes(nextWords[0])) {
     return true;
   }
-  return nextWords[0].endsWith('ing') || nextWords[1].endsWith('ing');
+  return nextWords[1].endsWith('ing');
 }
 
 function isEmptyCatch(ctx) {

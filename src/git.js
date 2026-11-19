@@ -8,7 +8,10 @@ const BASE_CANDIDATES = ['origin/main', 'origin/master', 'main', 'master'];
 const MAX_FILE_BYTES = 1024 * 1024;
 
 // The exact diff format slop-check parses, whatever the user's git config says.
-const DIFF_OPTIONS = ['--unified=0', '--no-color', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/'];
+const DIFF_OPTIONS = [
+  '--unified=0', '--no-color', '--no-ext-diff', '--no-textconv', '--find-renames', '--src-prefix=a/', '--dst-prefix=b/',
+];
+const SHALLOW_HINT = 'this is a shallow clone, so the base commit is missing. Use actions/checkout with fetch-depth: 0, or run git fetch --unshallow.';
 
 export class SlopCheckError extends Error {}
 
@@ -40,11 +43,29 @@ function refExists(cwd, ref) {
 }
 
 export function findRepoRoot(cwd) {
-  const root = git(['rev-parse', '--show-toplevel'], cwd).trim();
-  if (!refExists(root, 'HEAD')) {
+  return git(['rev-parse', '--show-toplevel'], cwd).trim();
+}
+
+export function requireCommits(cwd) {
+  if (!refExists(cwd, 'HEAD')) {
     throw new SlopCheckError('this repository has no commits yet');
   }
-  return root;
+}
+
+export function commitExists(cwd, sha) {
+  return refExists(cwd, sha);
+}
+
+// merge-base fails in a shallow clone when history stops before the fork point.
+function mergeBase(cwd, ref) {
+  try {
+    return git(['merge-base', 'HEAD', ref], cwd).trim();
+  } catch (error) {
+    if (git(['rev-parse', '--is-shallow-repository'], cwd).trim() === 'true') {
+      throw new SlopCheckError(SHALLOW_HINT);
+    }
+    throw error;
+  }
 }
 
 function defaultBaseRef(cwd) {
@@ -71,7 +92,7 @@ export function findBase(cwd, ref) {
   if (!refExists(cwd, name)) {
     throw new SlopCheckError(`unknown base "${name}"`);
   }
-  const sha = git(['merge-base', 'HEAD', name], cwd).trim();
+  const sha = mergeBase(cwd, name);
   const head = git(['rev-parse', 'HEAD'], cwd).trim();
   if (sha === head) {
     return null;
@@ -85,7 +106,7 @@ export function findBaseFromSha(cwd, baseSha) {
       `base commit ${baseSha.slice(0, 7)} is not in this clone. Use actions/checkout with fetch-depth: 0.`,
     );
   }
-  const sha = git(['merge-base', 'HEAD', baseSha], cwd).trim();
+  const sha = mergeBase(cwd, baseSha);
   return { sha, name: baseSha.slice(0, 7) };
 }
 
@@ -124,14 +145,14 @@ export function getAllFiles(cwd, keep) {
       continue;
     }
     const fullPath = join(cwd, path);
-    let size;
+    let stats;
     try {
-      size = statSync(fullPath).size;
+      stats = statSync(fullPath);
     } catch {
       // Tracked but deleted in the working tree: nothing to read.
       continue;
     }
-    if (size > MAX_FILE_BYTES) {
+    if (!stats.isFile() || stats.size > MAX_FILE_BYTES) {
       continue;
     }
     const buffer = readFileSync(fullPath);

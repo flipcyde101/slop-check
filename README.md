@@ -51,7 +51,8 @@ npx --allow-git=all github:tisankanj/slop-check
 ```
 
 It compares your branch with `main` (or `master`, or `origin/HEAD`) and includes
-uncommitted changes to tracked files. Needs Node.js 20 or newer. npm 12 installs
+uncommitted changes to tracked files. New files count once you `git add` them.
+Needs Node.js 20 or newer. npm 12 installs
 from GitHub only with `--allow-git=all`; older npm versions ignore the flag.
 
 ```bash

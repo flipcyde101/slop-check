@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runAction } from '../src/action.js';
-import { git, makeDirtyBranch } from './helpers.js';
+import { commitFile, git, makeDirtyBranch } from './helpers.js';
 
 const MARKER = '<!-- slop-check -->';
 
@@ -148,4 +150,59 @@ test('an invalid max-score fails with a clear error', async () => {
   }
   assert.equal(result.failed, true);
   assert.match(lines.join(''), /::error::.*max-score must be a whole number from 0 to 100/);
+});
+
+function captureStdout(fn) {
+  const lines = [];
+  const write = process.stdout.write;
+  process.stdout.write = (text) => lines.push(String(text));
+  return fn().finally(() => {
+    process.stdout.write = write;
+  }).then((result) => ({ result, output: lines.join('') }));
+}
+
+test('maxScore from .slopcheckrc.json is used when the input is empty', async () => {
+  const { repo, env } = setup({ inputs: { INPUT_COMMENT: 'false' } });
+  commitFile(repo, '.slopcheckrc.json', '{ "maxScore": 10, "rules": { "nope": "off" } }');
+  const { result, output } = await captureStdout(() => runAction({ env, fetchFn: fakeFetch([]).fetchFn, cwd: repo }));
+  assert.equal(result.failed, true);
+  assert.match(output, /::warning::slop-check: unknown rule "nope"/);
+});
+
+test('push after a force push falls back to the default base', async () => {
+  const event = { before: 'deadbeef'.repeat(5), after: 'x' };
+  const { repo, env } = setup({ eventName: 'push', event, inputs: { INPUT_COMMENT: 'false' } });
+  const { result } = await captureStdout(() => runAction({ env, fetchFn: fakeFetch([]).fetchFn, cwd: repo }));
+  assert.deepEqual(result, { score: 25, failed: false });
+});
+
+test('file names cannot run workflow commands in the log', async () => {
+  const { repo, env } = setup({ inputs: { INPUT_COMMENT: 'false' } });
+  commitFile(repo, '::error::x.js', 'debugger;\n');
+  const { output } = await captureStdout(() => runAction({ env, fetchFn: fakeFetch([]).fetchFn, cwd: repo }));
+  const stop = /^::stop-commands::(\S+)$/m.exec(output);
+  assert.ok(stop, output);
+  const resume = output.indexOf(`::${stop[1]}::`);
+  assert.ok(output.indexOf('::error::x.js') > stop.index && output.indexOf('::error::x.js') < resume);
+});
+
+test('a file name with backticks cannot close the report code block', async () => {
+  const { repo, env } = setup({ inputs: { INPUT_COMMENT: 'false' } });
+  commitFile(repo, 'a```b.js', 'debugger;\n');
+  await captureStdout(() => runAction({ env, fetchFn: fakeFetch([]).fetchFn, cwd: repo }));
+  const summary = readFileSync(env.GITHUB_STEP_SUMMARY, 'utf8');
+  assert.match(summary, /^````+text$/m);
+});
+
+test('the action entry runs even when its path goes through a symlink', () => {
+  const { repo, env } = setup({ inputs: { INPUT_COMMENT: 'false' } });
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const main = /^\s*main:\s*(\S+)/m.exec(readFileSync(join(root, 'action.yml'), 'utf8'))[1];
+  const linkDir = mkdtempSync(join(tmpdir(), 'slop-check-link-'));
+  symlinkSync(root, join(linkDir, 'action'));
+  spawnSync(process.execPath, [join(linkDir, 'action', main)], {
+    env: { ...process.env, ...env, GITHUB_WORKSPACE: repo },
+    encoding: 'utf8',
+  });
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, 'utf8'), 'score=25\n');
 });

@@ -41,8 +41,11 @@ export function isTestFile(path) {
   if (name.includes('.test.') || name.includes('.spec.')) {
     return true;
   }
+  if (/_test\.(?:go|py)$/.test(name) || /^test_.*\.py$/.test(name) || /_spec\.rb$/.test(name)) {
+    return true;
+  }
   const folders = path.split('/').slice(0, -1);
-  return folders.includes('__tests__') || folders.includes('test') || folders.includes('tests');
+  return ['__tests__', 'test', 'tests', 'spec'].some((folder) => folders.includes(folder));
 }
 
 export function isExampleFile(path) {
