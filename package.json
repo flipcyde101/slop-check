@@ -1,0 +1,43 @@
+{
+  "name": "slop-check",
+  "version": "1.0.0",
+  "description": "Catch AI slop in your diff before your reviewer does.",
+  "type": "module",
+  "bin": {
+    "slop-check": "bin/slop-check.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "action.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tisankanj/slop-check.git"
+  },
+  "homepage": "https://github.com/tisankanj/slop-check#readme",
+  "bugs": {
+    "url": "https://github.com/tisankanj/slop-check/issues"
+  },
+  "keywords": [
+    "ai",
+    "ai-slop",
+    "linter",
+    "code-review",
+    "cli",
+    "github-action",
+    "claude-code",
+    "cursor",
+    "copilot"
+  ],
+  "author": "Tisankan Jeyakumar",
+  "license": "MIT"
+}
