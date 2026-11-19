@@ -1,5 +1,5 @@
 {
-  "name": "slop-check",
+  "name": "@tisankan/slop-check",
   "version": "1.0.0",
   "description": "Catch AI slop in your diff before your reviewer does.",
   "type": "module",
@@ -39,5 +39,8 @@
     "copilot"
   ],
   "author": "Tisankan Jeyakumar",
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT"
 }

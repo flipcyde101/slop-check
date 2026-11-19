@@ -2,6 +2,7 @@
 
 [![slop score](https://img.shields.io/badge/slop_score-0-brightgreen)](https://github.com/tisankanj/slop-check)
 [![ci](https://github.com/tisankanj/slop-check/actions/workflows/ci.yml/badge.svg)](https://github.com/tisankanj/slop-check/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@tisankan/slop-check)](https://www.npmjs.com/package/@tisankan/slop-check)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Catch AI slop in your diff before your reviewer does.**
@@ -47,24 +48,24 @@ Commit message: `feat: supercharge user caching`. <!-- slop-check-ignore -->
 Run it inside any git repo, on any branch. No config, no dependencies, no API keys.
 
 ```bash
-npx --allow-git=all github:tisankanj/slop-check
+npx @tisankan/slop-check
 ```
 
 It compares your branch with `main` (or `master`, or `origin/HEAD`) and includes
 uncommitted changes to tracked files. New files count once you `git add` them.
-Needs Node.js 20 or newer. npm 12 installs
-from GitHub only with `--allow-git=all`; older npm versions ignore the flag.
+Needs Node.js 20 or newer. To install it once: `npm i -g @tisankan/slop-check`,
+then run `slop-check`.
 
 ```bash
-npx --allow-git=all github:tisankanj/slop-check --all       # every tracked file
-npx --allow-git=all github:tisankanj/slop-check --staged    # staged changes, for a git hook
-npx --allow-git=all github:tisankanj/slop-check develop     # compare with another base
+npx @tisankan/slop-check --all       # every tracked file
+npx @tisankan/slop-check --staged    # staged changes, for a git hook
+npx @tisankan/slop-check develop     # compare with another base
 ```
 
 ## What's your repo's slop score?
 
 ```bash
-npx --allow-git=all github:tisankanj/slop-check --all --badge
+npx @tisankan/slop-check --all --badge
 ```
 
 That prints a badge for your README, like the one at the top of this page:
@@ -178,7 +179,7 @@ skip that line.
 
 ```bash
 # .git/hooks/pre-commit
-npx --yes --allow-git=all github:tisankanj/slop-check --staged --max-score 30
+npx --yes @tisankan/slop-check --staged --max-score 30
 ```
 
 ## All options
