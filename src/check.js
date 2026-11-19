@@ -5,7 +5,7 @@ import { getExtension, getLanguage, isExampleFile, isTestFile } from './language
 import { RULES } from './rules.js';
 
 // Very long lines are almost always minified or generated code.
-const MAX_LINE_LENGTH = 1000;
+export const MAX_LINE_LENGTH = 1000;
 const IGNORE_MARKER = 'slop-check-ignore';
 
 function commentOf(text, style) {
