@@ -47,8 +47,12 @@ function countBySeverity(findings) {
 
 export function formatText(result, options) {
   const useColor = options.color;
-  const lineWord = result.mode === 'all' ? 'lines' : 'added lines';
-  const out = [`slop-check  ${describeScope(result)}  ${result.files} files, ${result.addedLines} ${lineWord}`, ''];
+  const fileWord = result.files === 1 ? 'file' : 'files';
+  let lineWord = result.addedLines === 1 ? 'line' : 'lines';
+  if (result.mode !== 'all') {
+    lineWord = `added ${lineWord}`;
+  }
+  const out = [`slop-check  ${describeScope(result)}  ${result.files} ${fileWord}, ${result.addedLines} ${lineWord}`, ''];
 
   if (result.addedLines === 0 && result.findings.length === 0) {
     out.push('Nothing to check. Use --all to check every tracked file.', '');

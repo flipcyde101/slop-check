@@ -51,3 +51,8 @@ test('json report has the documented keys', () => {
   assert.deepEqual(Object.keys(parsed), ['score', 'label', 'base', 'mode', 'files', 'addedLines', 'findings']);
   assert.equal(parsed.findings.length, 4);
 });
+
+test('text report uses singular words for one file and one line', () => {
+  const one = { ...RESULT, files: 1, addedLines: 1 };
+  assert.match(formatText(one, { color: false }), /1 file, 1 added line\n/);
+});
